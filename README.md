@@ -47,6 +47,12 @@ Download the appropriate binary from the [Releases](https://github.com/anaryk/me
 ### Docker
 
 ```bash
+docker pull ghcr.io/anaryk/metabase-mcp-server:latest
+```
+
+Or build locally:
+
+```bash
 docker build -t metabase-mcp-server .
 ```
 
@@ -140,7 +146,7 @@ Add the following to your Claude Desktop configuration file:
         "run", "--rm", "-i",
         "-e", "METABASE_URL=http://your-metabase-instance:3000",
         "-e", "METABASE_API_KEY=mb_your_api_key_here",
-        "metabase-mcp-server"
+        "ghcr.io/anaryk/metabase-mcp-server:latest"
       ]
     }
   }
@@ -211,7 +217,7 @@ This starts an SSE MCP endpoint at `http://your-server:8808/sse`.
 docker run --rm -p 8808:8808 \
   -e METABASE_URL=http://your-metabase:3000 \
   -e METABASE_API_KEY=mb_your_key \
-  metabase-mcp-server
+  ghcr.io/anaryk/metabase-mcp-server:latest
 ```
 
 The Docker image uses SSE transport by default.
@@ -221,7 +227,7 @@ Or use `docker-compose.yml`:
 ```yaml
 services:
   metabase-mcp:
-    build: .
+    image: ghcr.io/anaryk/metabase-mcp-server:latest
     environment:
       METABASE_URL: http://metabase:3000
       METABASE_API_KEY: mb_your_key
