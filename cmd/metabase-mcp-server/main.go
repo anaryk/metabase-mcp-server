@@ -49,13 +49,11 @@ func run() error {
 		Str("transport", cfg.Transport).
 		Msg("starting metabase MCP server")
 
-	// Create Metabase API client
 	client, err := metabase.NewClient(cfg.MetabaseURL, cfg.APIKey, cfg.Username, cfg.Password, logger)
 	if err != nil {
 		return fmt.Errorf("creating metabase client: %w", err)
 	}
 
-	// Create MCP server
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "metabase-mcp-server",
 		Version: version,
@@ -65,10 +63,8 @@ func run() error {
 			"SQL queries are restricted to read-only (SELECT) operations for safety.",
 	})
 
-	// Register all tools
 	tools.RegisterAll(server, client, logger)
 
-	// Set up context with signal handling
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
@@ -82,15 +78,11 @@ func run() error {
 
 func runStdio(ctx context.Context, server *mcp.Server, logger zerolog.Logger) error {
 	logger.Info().Msg("MCP server ready, listening on stdio")
-	if err := server.Run(ctx, &mcp.StdioTransport{}); err != nil {
-		logger.Error().Err(err).Msg("server error")
-		return err
-	}
-	return nil
+	return server.Run(ctx, &mcp.StdioTransport{})
 }
 
 func runSSE(ctx context.Context, server *mcp.Server, port int, logger zerolog.Logger) error {
-	handler := mcp.NewSSEHandler(func(_ *http.Request) *mcp.Server {
+	handler := mcp.NewStreamableHTTPHandler(func(_ *http.Request) *mcp.Server {
 		return server
 	}, nil)
 

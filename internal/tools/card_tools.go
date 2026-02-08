@@ -96,7 +96,6 @@ func registerCardTools(server *mcp.Server, client *metabase.Client, logger zerol
 				return errResult(err)
 			}
 			card := &metabase.Card{
-				Name:                  args["name"].(string),
 				Description:           optionalStringArg(args, "description"),
 				DatasetQuery:          mapArg(args, "dataset_query"),
 				Archived:              optionalBoolArg(args, "archived"),
@@ -104,6 +103,9 @@ func registerCardTools(server *mcp.Server, client *metabase.Client, logger zerol
 				VisualizationSettings: mapArg(args, "visualization_settings"),
 				EnableEmbedding:       optionalBoolArg(args, "enable_embedding"),
 				EmbeddingParams:       mapArg(args, "embedding_params"),
+			}
+			if n, ok := args["name"].(string); ok {
+				card.Name = n
 			}
 			if d, ok := args["display"].(string); ok {
 				card.Display = d

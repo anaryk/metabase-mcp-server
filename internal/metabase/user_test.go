@@ -37,14 +37,12 @@ func TestGetUser(t *testing.T) {
 }
 
 func TestGetCurrentUser(t *testing.T) {
-	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/api/user/current", r.URL.Path)
-		w.Header().Set("Content-Type", "application/json")
-		err := json.NewEncoder(w).Encode(User{ID: 1, Email: "admin@test.com"})
-		require.NoError(t, err)
+	_, client := newTestServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
 	})
 
+	// newTestServer returns a valid User for /api/user/current
 	user, err := client.GetCurrentUser()
 	require.NoError(t, err)
-	assert.Equal(t, "admin@test.com", user.Email)
+	assert.Equal(t, "test@test.com", user.Email)
 }

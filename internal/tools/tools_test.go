@@ -18,7 +18,14 @@ import (
 func setupTestServer(t *testing.T, handler http.HandlerFunc) (*mcp.Server, *mcp.ClientSession) {
 	t.Helper()
 
-	mbServer := httptest.NewServer(handler)
+	mbServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/user/current" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":1,"email":"test@test.com"}`))
+			return
+		}
+		handler(w, r)
+	}))
 	t.Cleanup(mbServer.Close)
 
 	logger := zerolog.Nop()
@@ -197,4 +204,54 @@ func TestSearch(t *testing.T) {
 
 	text := result.Content[0].(*mcp.TextContent).Text
 	assert.Contains(t, text, "Revenue Card")
+}
+
+func TestStreamableHTTPTransport(t *testing.T) {
+	// Set up mock Metabase backend
+	mbServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/user/current" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":1,"email":"test@test.com"}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(mbServer.Close)
+
+	logger := zerolog.Nop()
+	client, err := metabase.NewClient(mbServer.URL, "test-api-key", "", "", logger)
+	require.NoError(t, err)
+
+	server := mcp.NewServer(&mcp.Implementation{
+		Name:    "metabase-mcp-server",
+		Version: "test",
+	}, nil)
+	RegisterAll(server, client, logger)
+
+	// Start an HTTP server with StreamableHTTPHandler
+	handler := mcp.NewStreamableHTTPHandler(func(_ *http.Request) *mcp.Server {
+		return server
+	}, nil)
+	httpServer := httptest.NewServer(handler)
+	t.Cleanup(httpServer.Close)
+
+	// Connect via StreamableClientTransport
+	mcpClient := mcp.NewClient(&mcp.Implementation{
+		Name:    "test-streamable-client",
+		Version: "test",
+	}, nil)
+
+	ctx := context.Background()
+	transport := &mcp.StreamableClientTransport{
+		Endpoint:   httpServer.URL,
+		HTTPClient: httpServer.Client(),
+	}
+	session, err := mcpClient.Connect(ctx, transport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	// Verify tools are registered via the Streamable HTTP transport
+	result, err := session.ListTools(ctx, nil)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, len(result.Tools), 45, "expected at least 45 tools via streamable HTTP")
 }

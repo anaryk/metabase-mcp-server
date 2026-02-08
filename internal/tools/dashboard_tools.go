@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/rs/zerolog"
@@ -235,7 +236,7 @@ func registerDashboardTools(server *mcp.Server, client *metabase.Client, logger 
 			}
 			cardsRaw, ok := args["cards"].([]any)
 			if !ok {
-				return errResult(err)
+				return errResult(fmt.Errorf("cards must be an array"))
 			}
 			var cards []metabase.DashCard
 			rawJSON, _ := json.Marshal(cardsRaw)

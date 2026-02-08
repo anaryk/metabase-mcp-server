@@ -29,7 +29,6 @@ func NewClient(baseURL, apiKey, username, password string, logger zerolog.Logger
 		SetBaseURL(baseURL).
 		SetTimeout(30 * time.Second)
 
-	// Request logging middleware
 	httpClient.OnBeforeRequest(func(_ *resty.Client, r *resty.Request) error {
 		logger.Debug().
 			Str("method", r.Method).
@@ -38,7 +37,6 @@ func NewClient(baseURL, apiKey, username, password string, logger zerolog.Logger
 		return nil
 	})
 
-	// Response logging middleware
 	httpClient.OnAfterResponse(func(_ *resty.Client, r *resty.Response) error {
 		logger.Debug().
 			Str("method", r.Request.Method).
@@ -59,13 +57,11 @@ func NewClient(baseURL, apiKey, username, password string, logger zerolog.Logger
 			return nil, fmt.Errorf("initial authentication failed: %w", err)
 		}
 
-		// Set session header on every request
 		httpClient.OnBeforeRequest(func(_ *resty.Client, r *resty.Request) error {
 			r.SetHeader("X-Metabase-Session", sa.getSessionID())
 			return nil
 		})
 
-		// Auto-retry on 401
 		httpClient.AddRetryCondition(func(r *resty.Response, _ error) bool {
 			if r != nil && r.StatusCode() == 401 {
 				logger.Warn().Msg("received 401, re-authenticating")
@@ -83,7 +79,18 @@ func NewClient(baseURL, apiKey, username, password string, logger zerolog.Logger
 	}
 
 	c.httpClient = httpClient
+
+	if err := c.HealthCheck(); err != nil {
+		return nil, fmt.Errorf("metabase health check failed: %w", err)
+	}
+
 	return c, nil
+}
+
+// HealthCheck validates that Metabase is reachable and credentials are valid.
+func (c *Client) HealthCheck() error {
+	_, err := c.GetCurrentUser()
+	return err
 }
 
 // checkResponse checks if the API response indicates an error.
