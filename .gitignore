@@ -1,5 +1,5 @@
 # Binaries
-metabase-mcp-server
+/metabase-mcp-server
 *.exe
 *.exe~
 *.dll
