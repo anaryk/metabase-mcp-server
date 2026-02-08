@@ -61,6 +61,8 @@ The server accepts configuration via command-line flags or environment variables
 | `--username` | `METABASE_USERNAME` | One of auth | Username for session auth |
 | `--password` | `METABASE_PASSWORD` | One of auth | Password for session auth |
 | `--log-level` | `LOG_LEVEL` | No | Log level: debug, info, warn, error (default: info) |
+| `--transport` | `TRANSPORT` | No | Transport type: stdio or sse (default: stdio) |
+| `--port` | `PORT` | No | Port for SSE transport (default: 8808) |
 
 Either an API key or a username/password pair is required.
 
@@ -185,32 +187,36 @@ Alternatively, using environment variables:
 
 Make sure the `metabase-mcp-server` binary is in your PATH, or provide the full path to the binary.
 
-## Usage with MCP Remote (server deployment)
+## Server Deployment (SSE Transport)
 
-If you are running `metabase-mcp-server` on a remote server (e.g. a VPS, cloud instance, or within your internal network), you can expose it to local MCP clients using [mcp-remote](https://www.npmjs.com/package/mcp-remote). This is useful when you want a single centralized instance serving multiple users or machines.
+The server has built-in SSE (Server-Sent Events) transport support, so you can run it as a standalone HTTP server without any additional proxy or bridge. This is useful when you want a single centralized instance serving multiple users or machines.
 
-### Server-side setup
+### Running with SSE transport
 
-1. Install the server on your remote machine and run it behind an SSE proxy. Since `metabase-mcp-server` uses stdio transport, you need a bridge that exposes it over HTTP with Server-Sent Events. Use [supergateway](https://github.com/supercorp-ai/supergateway) for this:
+Start the server with `--transport sse`:
 
 ```bash
-npx -y supergateway \
-  --stdio "metabase-mcp-server --metabase-url http://your-metabase:3000 --api-key mb_your_key" \
+metabase-mcp-server \
+  --metabase-url http://your-metabase:3000 \
+  --api-key mb_your_key \
+  --transport sse \
   --port 8808
 ```
 
 This starts an SSE MCP endpoint at `http://your-server:8808/sse`.
 
-2. For production, run it as a systemd service or in Docker:
+### Running with Docker
 
 ```bash
 docker run --rm -p 8808:8808 \
   -e METABASE_URL=http://your-metabase:3000 \
   -e METABASE_API_KEY=mb_your_key \
-  supergateway-metabase
+  metabase-mcp-server
 ```
 
-Or create a `docker-compose.yml`:
+The Docker image uses SSE transport by default.
+
+Or use `docker-compose.yml`:
 
 ```yaml
 services:
@@ -219,17 +225,13 @@ services:
     environment:
       METABASE_URL: http://metabase:3000
       METABASE_API_KEY: mb_your_key
-    # supergateway wraps stdio into HTTP
-  supergateway:
-    image: node:22-alpine
-    command: npx -y supergateway --stdio "metabase-mcp-server" --port 8808 --host 0.0.0.0
     ports:
       - "8808:8808"
 ```
 
 ### Client-side: Claude Desktop
 
-Use `mcp-remote` to connect Claude Desktop to the remote server:
+Use [mcp-remote](https://www.npmjs.com/package/mcp-remote) to connect Claude Desktop to the remote server:
 
 ```json
 {
@@ -271,7 +273,7 @@ claude mcp add metabase -- npx -y mcp-remote http://your-server:8808/sse
 
 ### Security considerations
 
-- The HTTP endpoint does not include authentication by default. Place it behind a reverse proxy (nginx, Caddy, Traefik) with TLS and authentication if exposed to the internet.
+- The SSE endpoint does not include authentication by default. Place it behind a reverse proxy (nginx, Caddy, Traefik) with TLS and authentication if exposed to the internet.
 - Use SSH tunneling as a simple alternative for private access:
 
 ```bash

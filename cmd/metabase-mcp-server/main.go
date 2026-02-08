@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -45,6 +46,7 @@ func run() error {
 	logger.Info().
 		Str("version", version).
 		Str("metabase_url", cfg.MetabaseURL).
+		Str("transport", cfg.Transport).
 		Msg("starting metabase MCP server")
 
 	// Create Metabase API client
@@ -66,17 +68,52 @@ func run() error {
 	// Register all tools
 	tools.RegisterAll(server, client, logger)
 
-	logger.Info().Msg("MCP server ready, listening on stdio")
-
 	// Set up context with signal handling
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	// Run MCP server over stdio
+	switch cfg.Transport {
+	case "sse":
+		return runSSE(ctx, server, cfg.Port, logger)
+	default:
+		return runStdio(ctx, server, logger)
+	}
+}
+
+func runStdio(ctx context.Context, server *mcp.Server, logger zerolog.Logger) error {
+	logger.Info().Msg("MCP server ready, listening on stdio")
 	if err := server.Run(ctx, &mcp.StdioTransport{}); err != nil {
 		logger.Error().Err(err).Msg("server error")
 		return err
 	}
-
 	return nil
+}
+
+func runSSE(ctx context.Context, server *mcp.Server, port int, logger zerolog.Logger) error {
+	handler := mcp.NewSSEHandler(func(_ *http.Request) *mcp.Server {
+		return server
+	}, nil)
+
+	addr := fmt.Sprintf(":%d", port)
+	httpServer := &http.Server{
+		Addr:    addr,
+		Handler: handler,
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		logger.Info().Str("addr", addr).Msg("MCP server ready, listening on SSE")
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			errCh <- err
+		}
+		close(errCh)
+	}()
+
+	select {
+	case err := <-errCh:
+		return fmt.Errorf("SSE server error: %w", err)
+	case <-ctx.Done():
+		logger.Info().Msg("shutting down SSE server")
+		return httpServer.Close()
+	}
 }

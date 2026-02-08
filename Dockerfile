@@ -15,4 +15,7 @@ RUN apk --no-cache add ca-certificates
 
 COPY --from=builder /metabase-mcp-server /usr/local/bin/metabase-mcp-server
 
+EXPOSE 8808
+
 ENTRYPOINT ["metabase-mcp-server"]
+CMD ["--transport", "sse"]

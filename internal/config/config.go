@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -14,6 +15,8 @@ type Config struct {
 	Username    string
 	Password    string
 	LogLevel    string
+	Transport   string
+	Port        int
 }
 
 // Load parses configuration from command-line flags and environment variables.
@@ -27,6 +30,8 @@ func Load(args []string) (*Config, error) {
 	fs.StringVar(&cfg.Username, "username", "", "Metabase username")
 	fs.StringVar(&cfg.Password, "password", "", "Metabase password")
 	fs.StringVar(&cfg.LogLevel, "log-level", "info", "Log level (debug, info, warn, error)")
+	fs.StringVar(&cfg.Transport, "transport", "stdio", "Transport type: stdio or sse")
+	fs.IntVar(&cfg.Port, "port", 8808, "Port for SSE transport")
 
 	if err := fs.Parse(args); err != nil {
 		return nil, err
@@ -50,6 +55,18 @@ func Load(args []string) (*Config, error) {
 			cfg.LogLevel = envLevel
 		}
 	}
+	if cfg.Transport == "stdio" {
+		if envTransport := os.Getenv("TRANSPORT"); envTransport != "" {
+			cfg.Transport = envTransport
+		}
+	}
+	if cfg.Port == 8808 {
+		if envPort := os.Getenv("PORT"); envPort != "" {
+			if p, err := strconv.Atoi(envPort); err == nil {
+				cfg.Port = p
+			}
+		}
+	}
 
 	cfg.MetabaseURL = strings.TrimRight(cfg.MetabaseURL, "/")
 
@@ -66,6 +83,9 @@ func (c *Config) validate() error {
 	}
 	if c.APIKey == "" && (c.Username == "" || c.Password == "") {
 		return errors.New("either API key (--api-key or METABASE_API_KEY) or username/password (--username/--password or METABASE_USERNAME/METABASE_PASSWORD) is required")
+	}
+	if c.Transport != "stdio" && c.Transport != "sse" {
+		return errors.New("transport must be 'stdio' or 'sse'")
 	}
 	return nil
 }

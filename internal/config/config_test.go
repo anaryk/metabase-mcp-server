@@ -93,3 +93,47 @@ func TestLoad_DefaultLogLevel(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "info", cfg.LogLevel)
 }
+
+func TestLoad_DefaultTransportAndPort(t *testing.T) {
+	cfg, err := Load([]string{
+		"--metabase-url", "http://localhost:3000",
+		"--api-key", "key",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "stdio", cfg.Transport)
+	assert.Equal(t, 8808, cfg.Port)
+}
+
+func TestLoad_SSETransport(t *testing.T) {
+	cfg, err := Load([]string{
+		"--metabase-url", "http://localhost:3000",
+		"--api-key", "key",
+		"--transport", "sse",
+		"--port", "9090",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "sse", cfg.Transport)
+	assert.Equal(t, 9090, cfg.Port)
+}
+
+func TestLoad_TransportEnvVars(t *testing.T) {
+	t.Setenv("METABASE_URL", "http://metabase:3000")
+	t.Setenv("METABASE_API_KEY", "key")
+	t.Setenv("TRANSPORT", "sse")
+	t.Setenv("PORT", "7777")
+
+	cfg, err := Load(nil)
+	require.NoError(t, err)
+	assert.Equal(t, "sse", cfg.Transport)
+	assert.Equal(t, 7777, cfg.Port)
+}
+
+func TestLoad_InvalidTransport(t *testing.T) {
+	_, err := Load([]string{
+		"--metabase-url", "http://localhost:3000",
+		"--api-key", "key",
+		"--transport", "grpc",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "transport must be")
+}
